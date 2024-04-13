@@ -10,7 +10,7 @@ main() {
 		git submodule update --init --recursive
 	fi
 
-	cmake -B $BUILD_DIR -S $BASE_DIR
+	cmake -B $BUILD_DIR -S $BASE_DIR -DCMAKE_BUILD_TYPE=Debug
 	make -C $BUILD_DIR
 }
 

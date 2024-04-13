@@ -17,6 +17,9 @@
 
 #define LED_PIN 25
 
+#define RS485_RX_IDX 0
+#define RS485_TX_IDX 1
+
 #define BUFFER_SIZE 2560
 
 #define DEF_BIT_RATE 115200
@@ -47,13 +50,13 @@ typedef struct {
 void uart0_irq_fn(void);
 void uart1_irq_fn(void);
 
-const uart_id_t UART_ID[CFG_TUD_CDC] = {
+const uart_id_t UART_ID[2] = {
 	{
 		.inst = uart0,
 		.irq = UART0_IRQ,
 		.irq_fn = &uart0_irq_fn,
-		.tx_pin = 16,
-		.rx_pin = 17,
+		.tx_pin = 0,
+		.rx_pin = 1,
 	}, {
 		.inst = uart1,
 		.irq = UART1_IRQ,
@@ -63,7 +66,7 @@ const uart_id_t UART_ID[CFG_TUD_CDC] = {
 	}
 };
 
-uart_data_t UART_DATA[CFG_TUD_CDC];
+uart_data_t UART_DATA[1];
 
 static inline uint databits_usb2uart(uint8_t data_bits)
 {
@@ -104,7 +107,7 @@ static inline uint stopbits_usb2uart(uint8_t stop_bits)
 void update_uart_cfg(uint8_t itf)
 {
 	const uart_id_t *ui = &UART_ID[itf];
-	uart_data_t *ud = &UART_DATA[itf];
+	uart_data_t *ud = &UART_DATA[0];
 
 	mutex_enter_blocking(&ud->lc_mtx);
 
@@ -130,7 +133,7 @@ void update_uart_cfg(uint8_t itf)
 
 void usb_read_bytes(uint8_t itf)
 {
-	uart_data_t *ud = &UART_DATA[itf];
+	uart_data_t *ud = &UART_DATA[0];
 	uint32_t len = tud_cdc_n_available(itf);
 
 	if (len &&
@@ -149,7 +152,7 @@ void usb_read_bytes(uint8_t itf)
 
 void usb_write_bytes(uint8_t itf)
 {
-	uart_data_t *ud = &UART_DATA[itf];
+	uart_data_t *ud = &UART_DATA[0];
 
 	if (ud->uart_pos &&
 	    mutex_try_enter(&ud->uart_mtx, NULL)) {
@@ -170,7 +173,7 @@ void usb_write_bytes(uint8_t itf)
 
 void usb_cdc_process(uint8_t itf)
 {
-	uart_data_t *ud = &UART_DATA[itf];
+	uart_data_t *ud = &UART_DATA[0];
 
 	mutex_enter_blocking(&ud->lc_mtx);
 	tud_cdc_n_get_line_coding(itf, &ud->usb_lc);
@@ -203,7 +206,7 @@ void core1_entry(void)
 
 static inline void uart_read_bytes(uint8_t itf)
 {
-	uart_data_t *ud = &UART_DATA[itf];
+	uart_data_t *ud = &UART_DATA[0];
 	const uart_id_t *ui = &UART_ID[itf];
 
 	if (uart_is_readable(ui->inst)) {
@@ -226,16 +229,16 @@ void uart0_irq_fn(void)
 
 void uart1_irq_fn(void)
 {
-	uart_read_bytes(1);
+	uart_read_bytes(0);
 }
 
 void uart_write_bytes(uint8_t itf)
 {
-	uart_data_t *ud = &UART_DATA[itf];
+	uart_data_t *ud = &UART_DATA[0];
 
 	if (ud->usb_pos &&
 	    mutex_try_enter(&ud->usb_mtx, NULL)) {
-		const uart_id_t *ui = &UART_ID[itf];
+		const uart_id_t *ui = &UART_ID[RS485_TX_IDX];
 		uint32_t count = 0;
 
 		while (uart_is_writable(ui->inst) &&
@@ -256,7 +259,7 @@ void uart_write_bytes(uint8_t itf)
 void init_uart_data(uint8_t itf)
 {
 	const uart_id_t *ui = &UART_ID[itf];
-	uart_data_t *ud = &UART_DATA[itf];
+	uart_data_t *ud = &UART_DATA[0];
 
 	/* Pinmux */
 	gpio_set_function(ui->tx_pin, GPIO_FUNC_UART);
@@ -303,7 +306,7 @@ int main(void)
 
 	usbd_serial_init();
 
-	for (itf = 0; itf < CFG_TUD_CDC; itf++)
+	for (itf = 0; itf < 2; itf++)
 		init_uart_data(itf);
 
 	gpio_init(LED_PIN);
